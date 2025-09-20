@@ -1,0 +1,174 @@
+# ui.sh - interactive UI, play, playdir, random implementations
+
+_have_gum() { command -v gum >/dev/null 2>&1; }
+
+_choose_dir_with_ui() {
+  ensure_index
+  if _have_gum; then
+    python3 - "$INDEX_FILE" <<'PY' | gum filter --placeholder "Choose folder (type to filter)" --no-limit
+import sys,os
+idx=sys.argv[1]
+dirs=set()
+with open(idx,errors="ignore") as f:
+  for l in f:
+    l=l.strip()
+    if not l: continue
+    dirs.add(os.path.dirname(l))
+for d in sorted(dirs): print(d)
+PY
+  else
+    awk -F/ '{$NF=""; sub(/\/$/,""); print}' "$INDEX_FILE" | sort -u | fzf --prompt="Choose folder › "
+  fi
+}
+
+_choose_tracks_with_ui() {
+  ensure_index
+  if _have_gum; then
+    gum filter --placeholder "Type to fuzzy filter tracks, Enter to accept (Ctrl+D to finish)" < "$INDEX_FILE"
+  else
+    fzf --multi --prompt="Search tracks › " < "$INDEX_FILE"
+  fi
+}
+
+play_cmd() {
+  _require mpv fzf
+  local query="${1:-}"
+  ensure_index
+  if [ -n "$query" ]; then
+    # portable: collect matches into array
+    matches=()
+    while IFS= read -r line; do matches+=("$line"); done < <(grep -iF -- "$query" "$INDEX_FILE" 2>/dev/null || true)
+    if [ "${#matches[@]}" -eq 0 ]; then
+      echo "No matches for '$query'"
+      return 0
+    fi
+    # If exactly one match, play it immediately (no interactive step)
+    if [ "${#matches[@]}" -eq 1 ]; then
+      echo "▶ Found 1 match: ${matches[0]}"
+      "$HOME/scripts/music_manager/lib/play_helper.sh" "${matches[0]}"
+      return 0
+    fi
+    # more than one result -> fall back to interactive filter
+    if _have_gum; then
+      selected=$(printf "%s\n" "${matches[@]}" | gum filter --placeholder "Filter results; Enter when done")
+    else
+      selected=$(printf "%s\n" "${matches[@]}" | fzf --multi --prompt="Select tracks › ")
+    fi
+  else
+    # grep for query (case-insensitive)
+    # portable: fill an array 'matches' safely (works on macOS bash)
+    matches=()
+    while IFS= read -r line; do
+      matches+=("$line")
+    done < <(grep -iF -- "$query" "$INDEX_FILE" 2>/dev/null || true)
+    if [ "${#matches[@]}" -eq 0 ]; then echo "No matches."; return 0; fi
+    if _have_gum; then
+      selected=$(printf "%s\n" "${matches[@]}" | gum filter --placeholder "Filter results; Enter when done")
+    else
+      selected=$(printf "%s\n" "${matches[@]}" | fzf --multi --prompt="Select tracks › ")
+    fi
+  else
+    selected="$(_choose_tracks_with_ui)"
+  fi
+
+  if [ -z "$selected" ]; then
+    echo "No selection."
+    return 0
+  fi
+
+  # convert selection into array safely
+  IFS=$'\\n' read -r -d '' -a toplay < <(printf "%s\n" "$selected" && printf '\\0')
+
+  # call the helper that sends to mpv daemon or spawns mpv directly
+  if [ -x "$HOME/scripts/music_manager/lib/play_helper.sh" ]; then
+    "$HOME/scripts/music_manager/lib/play_helper.sh" "${toplay[@]}"
+  else
+    # fallback to internal player if helper missing
+    _play_with_mpv "${toplay[@]}"
+  fi
+}
+
+playdir_cmd() {
+  _require fzf find
+  dir="$(_choose_dir_with_ui)"
+  [ -n "$dir" ] || { echo "No selection."; return 0; }
+  # gather files safely
+  files=()
+  while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$dir" -maxdepth 1 -type f -iname '*.mp3' -print0)
+  [ ${#files[@]} -gt 0 ] || { echo "No mp3s in $dir"; return 0; }
+  _play_with_mpv "${files[@]}"
+}
+
+random_cmd() {
+  _require find
+  N="${1:-1}"
+  if ! printf "%s" "$N" | grep -qE '^[0-9]+$'; then echo "N must be positive integer"; return 1; fi
+  dir="$(_choose_dir_with_ui)"
+  [ -n "$dir" ] || { echo "No selection."; return 0; }
+  # collect files
+  files=()
+  while IFS= read -r -d '' f; do files+=("$f"); done < <(find "$dir" -maxdepth 1 -type f -iname '*.mp3' -print0)
+  [ ${#files[@]} -gt 0 ] || { echo "No mp3s in $dir"; return 0; }
+  # pick N randomly (use shuf if present, else python)
+  if command -v shuf >/dev/null 2>&1; then
+    tmp="$(mktemp)"; printf '%s\n' "${files[@]}" > "$tmp"; mapfile -t pick < <(shuf -n "$N" "$tmp"); rm -f "$tmp"
+  else
+    # python sample
+    pick=( $(printf '%s\n' "${files[@]}" | python3 -c "import sys,random; lines=[l.rstrip('\\n') for l in sys.stdin]; import json; print('\\n'.join(random.sample(lines, min($N,len(lines)))))") )
+  fi
+  _play_with_mpv "${pick[@]}"
+}
+
+tui_cmd() {
+  if _have_gum; then
+    ACTION=$(gum choose "Download (dl)" "Index (index)" "Start daemon (daemon)" "Play (play)" "Choose folder & play (playdir)" "Random from folder (random)" "Controls (controls)" "Quit")
+    case "$ACTION" in
+      "Download (dl)")
+        URL=$(gum input --placeholder "Playlist or video URL")
+        FOLDER=$(gum input --placeholder "Folder (leave blank to auto)")
+        if [ -z "$FOLDER" ]; then "$SCRIPT_DIR/bin/music" dl "$URL"; else "$SCRIPT_DIR/bin/music" dl "$URL" "$FOLDER"; fi
+        ;;
+      "Index (index)") "$SCRIPT_DIR/bin/music" index ;;
+      "Start daemon (daemon)") "$SCRIPT_DIR/bin/music" daemon ;;
+      "Play (play)")
+        Q=$(gum input --placeholder "Optional search query (blank to browse)")
+        if [ -z "$Q" ]; then "$SCRIPT_DIR/bin/music" play; else "$SCRIPT_DIR/bin/music" play "$Q"; fi
+        ;;
+      "Choose folder & play (playdir)") "$SCRIPT_DIR/bin/music" playdir ;;
+      "Random from folder (random)")
+        N=$(gum input --value "1" --placeholder "How many random tracks?")
+        "$SCRIPT_DIR/bin/music" random "$N"
+        ;;
+      "Controls (controls)")
+        CMD=$(gum choose "play" "pause" "stop" "next" "prev" "volup" "voldown" "status")
+        "$SCRIPT_DIR/bin/music" controls "$CMD"
+        ;;
+      "Quit") return 0 ;;
+    esac
+  else
+    CH=$(printf "Download (dl)\nIndex (index)\nStart daemon (daemon)\nPlay (play)\nChoose folder & play (playdir)\nRandom from folder (random)\nControls (controls)\nQuit" | fzf --prompt="Menu › ")
+    case "$CH" in
+      "Download (dl)")
+        read -r -p "URL: " URL
+        read -r -p "Folder (blank to auto): " FOLDER
+        if [ -z "$FOLDER" ]; then "$SCRIPT_DIR/bin/music" dl "$URL"; else "$SCRIPT_DIR/bin/music" dl "$URL" "$FOLDER"; fi
+        ;;
+      "Index (index)") "$SCRIPT_DIR/bin/music" index ;;
+      "Start daemon (daemon)") "$SCRIPT_DIR/bin/music" daemon ;;
+      "Play (play)")
+        read -r -p "Optional query (blank to browse): " Q
+        if [ -z "$Q" ]; then "$SCRIPT_DIR/bin/music" play; else "$SCRIPT_DIR/bin/music" play "$Q"; fi
+        ;;
+      "Choose folder & play (playdir)") "$SCRIPT_DIR/bin/music" playdir ;;
+      "Random from folder (random)")
+        read -r -p "How many random tracks? " N
+        "$SCRIPT_DIR/bin/music" random "$N"
+        ;;
+      "Controls (controls)")
+        read -r -p "Command (play|pause|stop|next|prev|volup|voldown|status): " CMD
+        "$SCRIPT_DIR/bin/music" controls "$CMD"
+        ;;
+      "Quit") return 0 ;;
+    esac
+  fi
+}

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# load modules
+# order: config -> utils -> modules that depend on utils/config
+. "$SCRIPT_DIR/lib/config.sh"
+. "$SCRIPT_DIR/lib/utils.sh"
+. "$SCRIPT_DIR/lib/index.sh"
+. "$SCRIPT_DIR/lib/player.sh"
+. "$SCRIPT_DIR/lib/dl.sh"
+. "$SCRIPT_DIR/lib/ui.sh"
+
+# dispatch
+case "${1:-}" in
+  dl) shift; dl_cmd "$@" ;;
+  index) shift; index_cmd "$@" ;;
+  daemon) shift; daemon_cmd "$@" ;;
+  play) shift; play_cmd "$@" ;;
+  playdir) shift; playdir_cmd "$@" ;;
+  random) shift; random_cmd "$@" ;;
+  tui) shift; tui_cmd "$@" ;;
+  controls) shift; controls_cmd "$@" ;;
+  ""|help|-h|--help)
+    cat <<'USAGE'
+Usage: music <command> [args]
+
+Commands:
+  dl <URL> [FolderName]    Download mp3(s) from URL (playlist or video). Updates index.
+  index                    Rebuild track index under BASE_DIR.
+  daemon                   Start mpv daemon (ipc).
+  play [query]             Fuzzy-search & play tracks.
+  playdir                  Choose a folder & play all tracks.
+  random [N]               Play N random tracks from chosen folder (default N=1).
+  tui                      Interactive menu (gum preferred, fzf fallback).
+  controls <cmd>           Send controls to mpv: play|pause|stop|next|prev|volup|voldown|status
+USAGE
+    ;;
+  *)
+    echo "Unknown subcommand: ${1:-}"
+    exit 2
+    ;;
+esac
