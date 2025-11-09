@@ -1,6 +1,40 @@
 # 🎵 YT-Downloader-Player (music\_manager)
 
-A modular terminal-based YouTube playlist **downloader + MP3 player** with fuzzy search, TUI, and `mpv` controls.
+A modular YouTube playlist **downloader + MP3 player** available in two interfaces:
+
+1. **🌐 Web UI** - Modern, beautiful web interface with real-time updates
+2. **💻 Terminal UI** - Classic terminal-based interface with fuzzy search and `mpv` controls
+
+---
+
+## 🌐 Web UI (NEW!)
+
+We now have a beautiful web interface! Perfect for those who prefer a visual, modern UI.
+
+### Quick Start
+
+```bash
+# Using Docker (recommended)
+./start.sh
+
+# Or development mode
+./start-dev.sh
+```
+
+Then open **http://localhost:3000** in your browser.
+
+**Features:**
+- 📥 Download YouTube playlists with one click
+- 🎵 Browse and play your music library
+- 🎮 Full playback controls
+- 📊 Real-time download progress
+- 📱 Responsive design for mobile & desktop
+
+**[📖 Full Web UI Documentation →](WEB_UI_README.md)**
+
+---
+
+## 💻 Terminal UI (Original)
 
 ---
 

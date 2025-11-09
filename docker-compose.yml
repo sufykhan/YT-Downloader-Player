@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    ports:
+      - "3001:3001"
+    volumes:
+      - music_data:/music
+      - ./bin:/app/bin
+      - ./lib:/app/lib
+    environment:
+      - PORT=3001
+      - MUSIC_BASE_DIR=/music
+      - CLIENT_URL=http://localhost:3000
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  music_data:
+    driver: local
