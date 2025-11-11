@@ -11,7 +11,8 @@ const {
   downloadYouTube,
   getMusicIndex,
   getPlaylists,
-  getPlayerStatus
+  getPlayerStatus,
+  startDaemon
 } = require('./utils/executor');
 
 const app = express();
@@ -127,26 +128,26 @@ app.post('/api/player/:action', async (req, res) => {
         if (track) {
           result = await executeMusic('play', [track]);
         } else {
-          result = await executeMusic('play');
+          result = await executeMusic('controls', ['play']);
         }
         break;
       case 'pause':
-        result = await executeMusic('pause');
+        result = await executeMusic('controls', ['pause']);
         break;
       case 'stop':
-        result = await executeMusic('stop');
+        result = await executeMusic('controls', ['stop']);
         break;
       case 'next':
-        result = await executeMusic('next');
+        result = await executeMusic('controls', ['next']);
         break;
       case 'prev':
-        result = await executeMusic('prev');
+        result = await executeMusic('controls', ['prev']);
         break;
       case 'volup':
-        result = await executeMusic('volup');
+        result = await executeMusic('controls', ['volup']);
         break;
       case 'voldown':
-        result = await executeMusic('voldown');
+        result = await executeMusic('controls', ['voldown']);
         break;
       default:
         return res.status(400).json({ success: false, error: 'Invalid action' });
@@ -207,13 +208,33 @@ app.post('/api/index/rebuild', async (req, res) => {
   }
 });
 
+// Start daemon
+app.post('/api/daemon/start', async (req, res) => {
+  try {
+    const result = await startDaemon();
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Server is running' });
 });
 
 // Start server
-server.listen(PORT, () => {
+server.listen(PORT, async () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`WebSocket server running`);
+
+  // Auto-start MPV daemon
+  console.log('Starting MPV daemon...');
+  const daemonResult = await startDaemon();
+  if (daemonResult.success) {
+    console.log('MPV daemon started successfully');
+  } else {
+    console.warn('Failed to start MPV daemon:', daemonResult.error);
+    console.warn('Player controls may not work. You can start it manually via /api/daemon/start');
+  }
 });

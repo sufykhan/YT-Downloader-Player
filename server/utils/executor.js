@@ -149,7 +149,7 @@ async function getPlaylists() {
  */
 async function getPlayerStatus() {
   try {
-    const result = await executeMusic('status');
+    const result = await executeMusic('controls', ['status']);
     // Parse the output to get structured data
     return {
       playing: result.stdout.includes('Playing') || result.stdout.includes('▶'),
@@ -163,10 +163,25 @@ async function getPlayerStatus() {
   }
 }
 
+/**
+ * Start MPV daemon
+ * @returns {Promise}
+ */
+async function startDaemon() {
+  try {
+    const result = await executeMusic('daemon');
+    return { success: true, result };
+  } catch (error) {
+    console.error('Error starting daemon:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   executeMusic,
   downloadYouTube,
   getMusicIndex,
   getPlaylists,
-  getPlayerStatus
+  getPlayerStatus,
+  startDaemon
 };
