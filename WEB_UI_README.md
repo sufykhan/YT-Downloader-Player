@@ -4,6 +4,8 @@ A modern, beautiful web interface for downloading YouTube playlists and playing 
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
+> **📐 For architecture and design details, see [DESIGN.md](DESIGN.md) - includes HLD, LLD, and sequence diagrams**
+
 ## ✨ Features
 
 - **YouTube Playlist Download**: Download entire playlists or individual videos with a single click

@@ -30,7 +30,9 @@ Then open **http://localhost:3000** in your browser.
 - 📊 Real-time download progress
 - 📱 Responsive design for mobile & desktop
 
-**[📖 Full Web UI Documentation →](WEB_UI_README.md)**
+**Documentation:**
+- **[📖 Full Web UI Documentation →](WEB_UI_README.md)**
+- **[🎨 Design Documentation (HLD/LLD/Sequence Diagrams) →](DESIGN.md)**
 
 ---
 
